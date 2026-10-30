@@ -12,8 +12,8 @@ pm2 set pm2-shipper:shipUrl http://loki:3100
 pm2 set pm2-shipper:shipEnabled true
 ```
 
-Every app PM2 manages is rotated, compressed, kept inside a byte budget, and — if you want
-it — shipped. Shipping is off by default; with no backend configured this is purely a
+Every app PM2 manages is rotated, compressed, kept inside a byte budget, and - if you want
+it - shipped. Shipping is off by default; with no backend configured this is purely a
 rotator.
 
 ---
@@ -23,7 +23,7 @@ rotator.
 Renaming a log file does **not** make PM2 write to a new one.
 
 In cluster mode each **worker** intercepts `process.stdout.write` and writes to the log file
-itself — `ProcessContainer.js` holds the descriptor, not the daemon. Rename the file and every
+itself - `ProcessContainer.js` holds the descriptor, not the daemon. Rename the file and every
 worker keeps appending to the same inode. The file vanishes from `ls` while the disk keeps
 filling, which is exactly the shape of the bug people report as "it rotated but the disk still
 filled".
@@ -58,7 +58,7 @@ uncompressed, says so loudly, and retries on the next cycle rather than assuming
 
 Logs are read by **tailing the files**, not by subscribing to PM2's bus. The bus is
 fire-and-forget with no replay, and this module restarts whenever `pm2 set` changes its own
-configuration — a shipper whose promise is "your logs reach your backend" cannot be built on
+configuration - a shipper whose promise is "your logs reach your backend" cannot be built on
 a transport that drops them during its own routine restart. A byte offset in a file survives
 a restart; a missed bus event is gone.
 
@@ -67,7 +67,7 @@ a restart; a missed bus event is gone.
 An offset is committed **only after the backend accepts the batch**. A refused batch rewinds
 to the last committed point and is read again next cycle, so the file itself is the buffer.
 
-**Duplicates after a crash are possible; gaps are not** — within the boundary below. That
+**Duplicates after a crash are possible; gaps are not** - within the boundary below. That
 distinction matters when you write queries: deduplicate on content if you need exactly-once
 semantics downstream.
 
@@ -85,10 +85,10 @@ stranded in an archive nobody follows.
 This module's own rotation cannot cause it: **rotation is deferred while unshipped bytes
 remain.** If the backend stays down, the backlog is allowed to grow to `maxBacklogBytes`
 (default 256M), after which rotation proceeds anyway and the abandoned byte count is logged
-as an error — filling the disk is the worse failure, but it is never silent.
+as an error - filling the disk is the worse failure, but it is never silent.
 
 If you run system `logrotate` against PM2's log directory as well, that is the case to avoid.
-Don't — this module already rotates, and only it knows to call `pm2 reloadLogs`.
+Don't - this module already rotates, and only it knows to call `pm2 reloadLogs`.
 
 Both behaviours are pinned by tests, including one that asserts the limitation so it cannot
 quietly become something worse.
@@ -110,7 +110,7 @@ ship:
 Loki indexes labels, and on a 16-instance cluster it would multiply your stream count by
 sixteen for something that belongs in the line.
 
-**OTLP/HTTP** is also the route to CloudWatch, Datadog and most other sinks — the
+**OTLP/HTTP** is also the route to CloudWatch, Datadog and most other sinks - the
 OpenTelemetry Collector already exports to them, so one hop of standard infrastructure
 replaces a native integration and a credential chain per vendor.
 
@@ -152,7 +152,7 @@ apps:
 ### The cap is a byte budget, not a file count
 
 `maxArchives: 30` does not bound disk usage. Thirty archives of a gigabyte each satisfy it
-perfectly while filling the disk — which is how a log rotator ends up causing the outage it was
+perfectly while filling the disk - which is how a log rotator ends up causing the outage it was
 installed to prevent. `maxTotalSize` is the limit that actually binds; the count is an extra
 constraint, never the only one.
 
@@ -195,35 +195,35 @@ dropped to the cap, and apps that cannot be rotated.
 
 `reopenFailures` is the one to watch for rotation: a non-zero value means a rotation left
 workers writing to an archive. For shipping it is `shippingLagBytes`, the number of bytes
-behind the end of the files being followed — the one figure that says whether delivery is
+behind the end of the files being followed - the one figure that says whether delivery is
 keeping up.
 
 ---
 
 ## Troubleshooting
 
-**Nothing rotates** — check `maxSize` against the live file size, and that the app isn't in
+**Nothing rotates** - check `maxSize` against the live file size, and that the app isn't in
 `exclude` or missing from a non-empty `only`. Empty files are never rotated.
 
-**`pm2` commands hang forever** — your `PM2_HOME` path is too long. PM2 binds
+**`pm2` commands hang forever** - your `PM2_HOME` path is too long. PM2 binds
 `$PM2_HOME/rpc.sock` and Linux caps socket paths at 107 characters; over that the bind fails
 silently. Check with `echo -n "$PM2_HOME/rpc.sock" | wc -c`.
 
 ## Roadmap
 
-Elasticsearch, CloudWatch and syslog outputs if demand appears — OTLP already reaches most of
+Elasticsearch, CloudWatch and syslog outputs if demand appears - OTLP already reaches most of
 them through a collector. Multi-line stack-trace joining is deliberately absent: it needs
 per-language heuristics and fails loudly when it guesses wrong.
 
 ## Design documentation
 
-- [`docs/requirements.md`](./docs/requirements.md) — what this was built against, including the
+- [`docs/requirements.md`](./docs/requirements.md) - what this was built against, including the
   durability boundary found by testing after the claim had already been written down.
-- Platform findings (F1–F13) live in **`pm2-ops-contract`**.
+- Platform findings (F1-F13) live in **`pm2-ops-contract`**.
 
 ## Requirements
 
-Node 18 or newer — tested on 18, 20, 22, 24 and 26 — with PM2 5 or newer.
+Node 18 or newer - tested on 18, 20, 22, 24 and 26 - with PM2 5 or newer.
 
 ## Development
 
