@@ -6,6 +6,9 @@ import { discoverTargets, LogTarget } from '../rotate/discover';
 import { shouldRotate } from '../rotate/policy';
 import { planRetention, Archive } from '../rotate/retention';
 import { Rotator, defaultStrategy, RotateStrategy } from '../rotate/rotator';
+import { Pipeline } from '../ship/pipeline';
+import { OffsetStore, defaultOffsetPath } from '../ship/offsets';
+import { Backend, LokiBackend, OtlpBackend } from '../ship/backends';
 import { log, logOnce } from '../log';
 import * as metrics from './metrics';
 
@@ -15,14 +18,36 @@ export class Engine {
   private rotator: Rotator;
   private lastRotatedAt = new Map<string, number>();
   private timer: NodeJS.Timeout | null = null;
+  private shipTimer: NodeJS.Timeout | null = null;
   private running = false;
+  private shipping = false;
   private stopped = false;
+  private readonly offsets: OffsetStore;
+  private readonly pipeline: Pipeline;
+  private lastTargets: LogTarget[] = [];
 
   constructor(
     private readonly client: Pm2Client,
     private config: ShipperConfig,
   ) {
     this.rotator = this.buildRotator();
+    this.offsets = new OffsetStore(config.ship.offsetFile || defaultOffsetPath());
+    this.offsets.load();
+    this.pipeline = new Pipeline(this.buildBackend(), this.offsets, {
+      maxBatchBytes: config.ship.maxBatchBytes,
+      maxBatchRecords: config.ship.maxBatchRecords,
+      maxLineBytes: config.ship.maxLineBytes,
+      attempts: config.ship.attempts,
+      baseBackoffMs: config.ship.baseBackoffMs,
+    });
+  }
+
+  private buildBackend(): Backend | null {
+    const s = this.config.ship;
+    if (!s.enabled || !s.url) return null;
+    return s.backend === 'otlp'
+      ? new OtlpBackend('otlp', s.url, s.labels, s.headers, s.timeoutMs)
+      : new LokiBackend('loki', s.url, s.labels, s.headers, s.timeoutMs);
   }
 
   private buildRotator(): Rotator {
@@ -45,17 +70,50 @@ export class Engine {
   updateConfig(next: ShipperConfig): void {
     this.config = next;
     this.rotator = this.buildRotator();
+    this.pipeline.setBackend(this.buildBackend());
   }
 
   start(): void {
     void this.cycle();
     this.timer = setInterval(() => void this.cycle(), this.config.checkSeconds * 1000);
     this.timer.unref?.();
+
+    if (this.config.ship.enabled) {
+      this.shipTimer = setInterval(() => void this.shipCycle(),
+        this.config.ship.pollSeconds * 1000);
+      this.shipTimer.unref?.();
+      log.info('shipping enabled', {
+        backend: this.config.ship.backend,
+        pollSeconds: this.config.ship.pollSeconds,
+      });
+    }
   }
 
   stop(): void {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
+    if (this.shipTimer) clearInterval(this.shipTimer);
+    this.offsets.flush(true);
+    void this.pipeline.closeAll();
+  }
+
+  /** Follow and ship. Never overlaps itself, so a slow backend cannot pile up cycles. */
+  private async shipCycle(): Promise<void> {
+    if (this.stopped || this.shipping) return;
+    this.shipping = true;
+    try {
+      await this.pipeline.pump(this.lastTargets);
+      const sizes = new Map<string, number>();
+      for (const t of this.lastTargets) {
+        try { sizes.set(t.path, (await stat(t.path)).size); } catch { /* gone */ }
+      }
+      metrics.set('shippingLagBytes', this.pipeline.lagFor(this.lastTargets, sizes));
+      this.offsets.flush();
+    } catch (err) {
+      log.warn('shipping cycle failed', { error: (err as Error).message });
+    } finally {
+      this.shipping = false;
+    }
   }
 
   /** One pass: discover, rotate what is due, then enforce the disk cap. */
@@ -72,6 +130,15 @@ export class Engine {
       });
       metrics.set('filesWatched', targets.length);
       metrics.set('appsUnrotatable', skipped.length);
+
+      const live = new Set(targets.map((t) => t.path));
+      for (const old of this.lastTargets) {
+        if (!live.has(old.path)) {
+          await this.pipeline.forget(old.path);
+          this.offsets.forget(old.path);
+        }
+      }
+      this.lastTargets = targets;
 
       for (const s of skipped) {
         // Said once, loudly: an operator who believes an app is covered when it has no
@@ -120,6 +187,12 @@ export class Engine {
       reason: decision.reason, detail: decision.detail,
       instances: t.merged ? t.pmIds.length : undefined,
     });
+
+    if (this.config.ship.enabled) {
+      // Ship what is there before it becomes an archive. Rotating first would leave
+      // the tail of the file to be read from a path that no longer exists.
+      await this.pipeline.drain(t);
+    }
 
     const res = await this.rotator.rotate(t);
     if (!res.ok) {

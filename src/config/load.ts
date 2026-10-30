@@ -25,6 +25,14 @@ function fromModuleConfig(env: NodeJS.ProcessEnv): LoadedConfig {
   copy('maxArchives', Number);
   copy('compress', (v) => v === 'true' || v === true as unknown as string);
   copy('includeModules', (v) => v === 'true');
+  // Shipping is configured through flat keys too, so `pm2 set` alone can turn it on.
+  const ship: Record<string, unknown> = {};
+  if (env.shipEnabled !== undefined && env.shipEnabled !== '') ship.enabled = env.shipEnabled === 'true';
+  if (env.shipBackend) ship.backend = env.shipBackend;
+  if (env.shipUrl) ship.url = env.shipUrl;
+  if (env.shipPollSeconds) ship.pollSeconds = Number(env.shipPollSeconds);
+  if (Object.keys(ship).length > 0) raw.ship = ship;
+
   if (env.only) raw.only = env.only.split(',').map((s) => s.trim()).filter(Boolean);
   if (env.exclude) raw.exclude = env.exclude.split(',').map((s) => s.trim()).filter(Boolean);
   return { config: parseConfig(raw), source: 'module-config' };

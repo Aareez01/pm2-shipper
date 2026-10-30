@@ -10,6 +10,12 @@ export const counters = {
   bytesFreed: 0,
   bytesDroppedToCap: 0,
   appsUnrotatable: 0,
+
+  linesShipped: 0,
+  bytesShipped: 0,
+  deliveryFailures: 0,
+  /** Bytes behind the end of the files being followed - the headline number. */
+  shippingLagBytes: 0,
 };
 
 export type CounterName = keyof typeof counters;

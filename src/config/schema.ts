@@ -42,9 +42,29 @@ export const configSchema = z.object({
   only: z.array(z.string()).default([]),
   exclude: z.array(z.string()).default([]),
 
+  /** Shipping is opt-in: with no backend configured this module only rotates. */
+  ship: z.object({
+    enabled: z.boolean().default(false),
+    backend: z.enum(['loki', 'otlp']).default('loki'),
+    url: z.string().default(''),
+    headers: z.record(z.string()).default({}),
+    labels: z.record(z.string()).default({}),
+    timeoutMs: z.number().int().positive().default(15_000),
+    pollSeconds: z.number().positive().default(2),
+    maxBatchBytes: size.default('1M'),
+    maxBatchRecords: z.number().int().positive().default(5000),
+    maxLineBytes: size.default('256K'),
+    attempts: z.number().int().positive().max(10).default(4),
+    baseBackoffMs: z.number().int().positive().default(1000),
+    offsetFile: z.string().default(''),
+  }).default({}),
+
   apps: z.record(appOverride).default({}),
 }).refine((c) => c.maxSize > 0 || c.intervalSeconds > 0, {
   message: 'at least one of maxSize or intervalSeconds must be set, or nothing ever rotates',
+}).refine((c) => !c.ship.enabled || c.ship.url.length > 0, {
+  message: 'ship.enabled is true but ship.url is empty, so there is nowhere to send logs',
+  path: ['ship', 'url'],
 });
 
 export type ShipperConfig = z.infer<typeof configSchema>;

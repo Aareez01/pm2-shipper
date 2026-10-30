@@ -1,17 +1,20 @@
 # pm2-shipper
 
-Log rotation for PM2 that works in cluster mode, with a disk cap that is actually enforced.
+Log rotation that works in cluster mode, and log shipping that does not lose lines.
 
 ```bash
 pm2 install pm2-shipper
 pm2 set pm2-shipper:maxSize 50M
 pm2 set pm2-shipper:maxTotalSize 2G
+
+# optional: ship to Loki or an OTLP collector
+pm2 set pm2-shipper:shipUrl http://loki:3100
+pm2 set pm2-shipper:shipEnabled true
 ```
 
-That's it — every app PM2 manages is rotated, compressed, and kept inside the byte budget.
-
-> **Status: rotation only.** Shipping to Grafana Loki and OTLP is the next stage and builds
-> on the same file discovery. See [Roadmap](#roadmap).
+Every app PM2 manages is rotated, compressed, kept inside a byte budget, and — if you want
+it — shipped. Shipping is off by default; with no backend configured this is purely a
+rotator.
 
 ---
 
@@ -48,6 +51,55 @@ rename  →  pm2 reloadLogs  →  verify the new file exists  →  compress
 workers may still be appending to produces a truncated archive and a hidden file that keeps
 growing. If `reloadLogs` fails or the new file never appears, this module leaves the archive
 uncompressed, says so loudly, and retries on the next cycle rather than assuming it worked.
+
+---
+
+## Shipping
+
+Logs are read by **tailing the files**, not by subscribing to PM2's bus. The bus is
+fire-and-forget with no replay, and this module restarts whenever `pm2 set` changes its own
+configuration — a shipper whose promise is "your logs reach your backend" cannot be built on
+a transport that drops them during its own routine restart. A byte offset in a file survives
+a restart; a missed bus event is gone.
+
+### Delivery is at-least-once
+
+An offset is committed **only after the backend accepts the batch**. A refused batch rewinds
+to the last committed point and is read again next cycle, so the file itself is the buffer.
+
+**Duplicates after a crash are possible; gaps are not.** That distinction matters when you
+write queries — deduplicate on content if you need exactly-once semantics downstream.
+
+Verified against a live daemon with an app emitting a strict sequence: restarting the
+shipper mid-stream and taking the backend offline both produced **zero gaps** across ~670
+lines.
+
+### Backends
+
+```yaml
+ship:
+  enabled: true
+  backend: loki            # or otlp
+  url: http://loki:3100
+  headers: { X-Scope-OrgID: tenant-a }
+  labels: { env: prod }
+  pollSeconds: 2
+  maxBatchBytes: 1M
+```
+
+**Loki** labels on `app`, `stream` and `host` only. `pm_id` is deliberately *not* a label:
+Loki indexes labels, and on a 16-instance cluster it would multiply your stream count by
+sixteen for something that belongs in the line.
+
+**OTLP/HTTP** is also the route to CloudWatch, Datadog and most other sinks — the
+OpenTelemetry Collector already exports to them, so one hop of standard infrastructure
+replaces a native integration and a credential chain per vendor.
+
+### Rotation and shipping cooperate
+
+Because one module owns both, the tail of a file is shipped *before* it is rotated away, and
+the follower keeps its descriptor open so it drains the old inode before following the new
+file. A rotation loses nothing, whoever performed it.
 
 ---
 
@@ -122,8 +174,10 @@ Exposed through `@pm2/io` when present, so `pm2 monit` shows whether it is worki
 rotations, reopen failures, archives compressed and deleted, bytes rotated and freed, bytes
 dropped to the cap, and apps that cannot be rotated.
 
-`reopenFailures` is the one to watch. A non-zero value means a rotation left workers writing to
-an archive — the failure this module exists to prevent.
+`reopenFailures` is the one to watch for rotation: a non-zero value means a rotation left
+workers writing to an archive. For shipping it is `shippingLagBytes`, the number of bytes
+behind the end of the files being followed — the one figure that says whether delivery is
+keeping up.
 
 ---
 
@@ -138,10 +192,9 @@ silently. Check with `echo -n "$PM2_HOME/rpc.sock" | wc -c`.
 
 ## Roadmap
 
-Shipping to **Grafana Loki** and **OTLP** is next, built on the same discovery and on tailing
-the files by byte offset rather than subscribing to PM2's bus — the bus is fire-and-forget with
-no replay, and this module restarts whenever `pm2 set` changes its own config. Delivery will be
-at-least-once: duplicates after a crash are acceptable, gaps are not.
+Elasticsearch, CloudWatch and syslog outputs if demand appears — OTLP already reaches most of
+them through a collector. Multi-line stack-trace joining is deliberately absent: it needs
+per-language heuristics and fails loudly when it guesses wrong.
 
 ## Development
 
