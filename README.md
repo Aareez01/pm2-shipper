@@ -215,6 +215,12 @@ Elasticsearch, CloudWatch and syslog outputs if demand appears — OTLP already 
 them through a collector. Multi-line stack-trace joining is deliberately absent: it needs
 per-language heuristics and fails loudly when it guesses wrong.
 
+## Design documentation
+
+- [`docs/requirements.md`](./docs/requirements.md) — what this was built against, including the
+  durability boundary found by testing after the claim had already been written down.
+- Platform findings (F1–F13) live in **`pm2-ops-contract`**.
+
 ## Development
 
 ```bash
