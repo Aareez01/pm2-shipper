@@ -20,7 +20,7 @@ These are the same problem. A rotator that does not understand who holds the fil
 corrupts the shipper's position, and a shipper that does not know when rotation happened loses data.
 Shipping them as one module is the point.
 
-**This module is different in kind from `pm2-probe` and `pm2-alertmanager`.** Those are event-driven
+**This module is different in kind from `pm2-liveness` and `pm2-alertmanager`.** Those are event-driven
 and low-volume. This one sits in the path of every log line on the host, so its failure modes are
 unbounded memory, silent data loss, and filling the disk it was installed to protect.
 

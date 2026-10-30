@@ -55,7 +55,7 @@ describe('discoverTargets', () => {
   });
 
   it('can leave other PM2 modules alone', () => {
-    const m = proc({ name: 'pm2-probe', pmx_module: true });
+    const m = proc({ name: 'pm2-liveness', pmx_module: true });
     expect(discoverTargets([m], opts).targets.length).toBeGreaterThan(0);
     expect(discoverTargets([m], { ...opts, includeModules: false }).targets).toHaveLength(0);
   });

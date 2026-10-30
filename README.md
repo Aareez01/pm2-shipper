@@ -221,6 +221,10 @@ per-language heuristics and fails loudly when it guesses wrong.
   durability boundary found by testing after the claim had already been written down.
 - Platform findings (F1–F13) live in **`pm2-ops-contract`**.
 
+## Requirements
+
+Node 18 or newer — tested on 18, 20, 22, 24 and 26 — with PM2 5 or newer.
+
 ## Development
 
 ```bash
