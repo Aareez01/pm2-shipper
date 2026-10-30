@@ -1,0 +1,50 @@
+{
+  "name": "pm2-shipper",
+  "version": "0.1.0",
+  "description": "Log rotation for PM2 that works in cluster mode, with a disk cap that is actually enforced. Log shipping to follow.",
+  "keywords": ["pm2", "pm2-module", "logrotate", "logs", "rotation", "devops"],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "engines": { "node": ">=18" },
+  "files": ["dist", "README.md", "LICENSE"],
+
+  "apps": [
+    {
+      "name": "pm2-shipper",
+      "script": "dist/index.js",
+      "instances": 1,
+      "exec_mode": "fork",
+      "autorestart": true,
+      "max_memory_restart": "150M",
+      "kill_timeout": 10000
+    }
+  ],
+
+  "config": {
+    "configFile": "",
+    "maxSize": "10M",
+    "intervalSeconds": 0,
+    "checkSeconds": 30,
+    "compress": true,
+    "maxTotalSize": "1G",
+    "maxArchives": 30,
+    "logLevel": "info"
+  },
+
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run test/unit"
+  },
+
+  "dependencies": { "js-yaml": "^4.1.0", "zod": "^3.23.8" },
+  "peerDependencies": { "pm2": ">=5" },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.7.5",
+    "pm2": "^7.1.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3"
+  }
+}
