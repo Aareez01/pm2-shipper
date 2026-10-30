@@ -146,6 +146,13 @@ export class Pipeline {
     return false;
   }
 
+  /** Unshipped bytes for one file: everything past the last committed offset. */
+  backlogBytes(path: string, size: number): number {
+    const off = this.offsets.get(path);
+    if (!off) return size;
+    return Math.max(0, size - off.offset);
+  }
+
   /** Bytes behind the end of each file - the number that says whether we keep up. */
   lagFor(targets: LogTarget[], sizes: Map<string, number>): number {
     let lag = 0;

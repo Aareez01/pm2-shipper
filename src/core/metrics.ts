@@ -16,6 +16,9 @@ export const counters = {
   deliveryFailures: 0,
   /** Bytes behind the end of the files being followed - the headline number. */
   shippingLagBytes: 0,
+  rotationsDeferred: 0,
+  /** Unshipped bytes abandoned because the backlog bound was reached. */
+  bytesAbandoned: 0,
 };
 
 export type CounterName = keyof typeof counters;

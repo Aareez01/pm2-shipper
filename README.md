@@ -67,12 +67,31 @@ a restart; a missed bus event is gone.
 An offset is committed **only after the backend accepts the batch**. A refused batch rewinds
 to the last committed point and is read again next cycle, so the file itself is the buffer.
 
-**Duplicates after a crash are possible; gaps are not.** That distinction matters when you
-write queries — deduplicate on content if you need exactly-once semantics downstream.
+**Duplicates after a crash are possible; gaps are not** — within the boundary below. That
+distinction matters when you write queries: deduplicate on content if you need exactly-once
+semantics downstream.
 
 Verified against a live daemon with an app emitting a strict sequence: restarting the
 shipper mid-stream and taking the backend offline both produced **zero gaps** across ~670
 lines.
+
+### Where the guarantee ends
+
+A follower's open descriptor does not survive a module restart. So if a file is rotated by
+**something other than this module** while shipping is behind, and the module then restarts,
+the stored offset points at an inode that is no longer at that path and the backlog is
+stranded in an archive nobody follows.
+
+This module's own rotation cannot cause it: **rotation is deferred while unshipped bytes
+remain.** If the backend stays down, the backlog is allowed to grow to `maxBacklogBytes`
+(default 256M), after which rotation proceeds anyway and the abandoned byte count is logged
+as an error — filling the disk is the worse failure, but it is never silent.
+
+If you run system `logrotate` against PM2's log directory as well, that is the case to avoid.
+Don't — this module already rotates, and only it knows to call `pm2 reloadLogs`.
+
+Both behaviours are pinned by tests, including one that asserts the limitation so it cannot
+quietly become something worse.
 
 ### Backends
 

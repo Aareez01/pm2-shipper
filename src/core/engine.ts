@@ -192,6 +192,32 @@ export class Engine {
       // Ship what is there before it becomes an archive. Rotating first would leave
       // the tail of the file to be read from a path that no longer exists.
       await this.pipeline.drain(t);
+
+      // If the drain did not finish - a backend outage, typically - rotating now would
+      // strand those bytes. The follower holds the old descriptor and could still read
+      // them, but that descriptor does not survive a module restart, and an outage is
+      // exactly when a restart is likely. Verified: outage + rotation + restart loses
+      // the backlog, so hold the rotation instead.
+      let current = size;
+      try { current = (await stat(t.path)).size; } catch { /* use the earlier size */ }
+      const backlog = this.pipeline.backlogBytes(t.path, current);
+
+      if (backlog > 0) {
+        if (current < this.config.ship.maxBacklogBytes) {
+          metrics.inc('rotationsDeferred');
+          logOnce(`defer:${t.path}`, 'warn', 'rotation deferred: logs are not shipped yet', {
+            app: t.app, path: t.path, backlogBytes: backlog,
+            note: 'rotating now would strand these bytes if the module restarted',
+          });
+          return;
+        }
+        // The bound wins: filling the disk is the worse failure. Never silently.
+        metrics.inc('bytesAbandoned', backlog);
+        log.error('rotating with an unshipped backlog - those bytes will NOT be shipped', {
+          app: t.app, path: t.path, abandonedBytes: backlog,
+          maxBacklogBytes: this.config.ship.maxBacklogBytes,
+        });
+      }
     }
 
     const res = await this.rotator.rotate(t);

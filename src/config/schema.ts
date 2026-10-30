@@ -57,6 +57,13 @@ export const configSchema = z.object({
     attempts: z.number().int().positive().max(10).default(4),
     baseBackoffMs: z.number().int().positive().default(1000),
     offsetFile: z.string().default(''),
+    /**
+     * Rotating a file that still has unshipped bytes abandons them: the follower's
+     * descriptor does not survive a module restart, so the backlog would be stranded in
+     * an archive nobody reads. Rotation is therefore deferred while a backlog exists -
+     * but not forever, or a dead backend would fill the disk.
+     */
+    maxBacklogBytes: size.default('256M'),
   }).default({}),
 
   apps: z.record(appOverride).default({}),
