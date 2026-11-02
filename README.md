@@ -1,5 +1,7 @@
 # pm2-shipper
 
+[![CI](https://github.com/Aareez01/pm2-shipper/actions/workflows/ci.yml/badge.svg)](https://github.com/Aareez01/pm2-shipper/actions/workflows/ci.yml) [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](#requirements)
+
 Log rotation that works in cluster mode, and log shipping that does not lose lines.
 
 ```bash
