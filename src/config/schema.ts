@@ -24,14 +24,14 @@ export const configSchema = z.object({
   checkSeconds: z.number().positive().default(30),
 
   /** Rotate when a file reaches this size. 0 disables the size trigger. */
-  maxSize: size.default('10M'),
+  maxSize: size.prefault('10M'),
   /** Rotate at least this often. 0 disables the time trigger. */
   intervalSeconds: z.number().nonnegative().default(0),
 
   compress: z.boolean().default(true),
 
   /** Total bytes of archives kept per log file. This is the cap that actually binds. */
-  maxTotalSize: size.default('1G'),
+  maxTotalSize: size.prefault('1G'),
   /** Additional archive-count limit. Never the only limit - see retention.ts. */
   maxArchives: z.number().int().nonnegative().default(30),
 
@@ -39,21 +39,21 @@ export const configSchema = z.object({
   verifyTimeoutMs: z.number().int().positive().default(5000),
 
   includeModules: z.boolean().default(true),
-  only: z.array(z.string()).default([]),
-  exclude: z.array(z.string()).default([]),
+  only: z.array(z.string()).max(1000).default([]),
+  exclude: z.array(z.string()).max(1000).default([]),
 
   /** Shipping is opt-in: with no backend configured this module only rotates. */
   ship: z.object({
     enabled: z.boolean().default(false),
     backend: z.enum(['loki', 'otlp']).default('loki'),
     url: z.string().default(''),
-    headers: z.record(z.string()).default({}),
-    labels: z.record(z.string()).default({}),
+    headers: z.record(z.string(), z.string()).default({}),
+    labels: z.record(z.string(), z.string()).default({}),
     timeoutMs: z.number().int().positive().default(15_000),
     pollSeconds: z.number().positive().default(2),
-    maxBatchBytes: size.default('1M'),
+    maxBatchBytes: size.prefault('1M'),
     maxBatchRecords: z.number().int().positive().default(5000),
-    maxLineBytes: size.default('256K'),
+    maxLineBytes: size.prefault('256K'),
     attempts: z.number().int().positive().max(10).default(4),
     baseBackoffMs: z.number().int().positive().default(1000),
     offsetFile: z.string().default(''),
@@ -63,10 +63,10 @@ export const configSchema = z.object({
      * an archive nobody reads. Rotation is therefore deferred while a backlog exists -
      * but not forever, or a dead backend would fill the disk.
      */
-    maxBacklogBytes: size.default('256M'),
-  }).default({}),
+    maxBacklogBytes: size.prefault('256M'),
+  }).prefault({}),
 
-  apps: z.record(appOverride).default({}),
+  apps: z.record(z.string(), appOverride).default({}),
 }).refine((c) => c.maxSize > 0 || c.intervalSeconds > 0, {
   message: 'at least one of maxSize or intervalSeconds must be set, or nothing ever rotates',
 }).refine((c) => !c.ship.enabled || c.ship.url.length > 0, {
