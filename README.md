@@ -1,6 +1,6 @@
 # pm2-shipper
 
-[![CI](https://github.com/Aareez01/pm2-shipper/actions/workflows/ci.yml/badge.svg)](https://github.com/Aareez01/pm2-shipper/actions/workflows/ci.yml) [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](#requirements)
+[![CI](https://github.com/Aareez01/pm2-shipper/actions/workflows/ci.yml/badge.svg)](https://github.com/Aareez01/pm2-shipper/actions/workflows/ci.yml) [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](#requirements)
 
 Log rotation that works in cluster mode, and log shipping that does not lose lines.
 
@@ -225,7 +225,7 @@ per-language heuristics and fails loudly when it guesses wrong.
 
 ## Requirements
 
-Node 18 or newer - tested on 18, 20, 22, 24 and 26 - with PM2 5 or newer.
+Node 22 or newer - tested on 22, 24 and 26 - with PM2 5 or newer.
 
 ## Development
 
