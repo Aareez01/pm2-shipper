@@ -49,6 +49,12 @@ export class FileFollower {
    */
   async open(from?: Offset): Promise<void> {
     const st = await stat(this.path);
+    // Release any descriptor we already hold before taking another. Assigning over a
+    // live handle leaks it, and the garbage collector closing a FileHandle is a hard
+    // error from Node 26 on. In a follower that runs for weeks, the end of that road
+    // is EMFILE. stat() goes first so a missing file throws before we give up what we
+    // have.
+    await this.close();
     this.handle = await open(this.path, 'r');
     this.dev = st.dev;
     this.ino = st.ino;

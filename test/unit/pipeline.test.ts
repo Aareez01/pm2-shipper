@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync, appendFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -45,6 +45,13 @@ beforeEach(() => {
     maxBatchBytes: 1024 * 1024, maxBatchRecords: 1000, maxLineBytes: 65536,
     attempts: 2, baseBackoffMs: 1,
   });
+});
+
+// A Pipeline holds an open descriptor per followed file. Leaving them to the garbage
+// collector is an error from Node 26 on, and a test that leaks them is also failing to
+// exercise the shutdown path the module relies on.
+afterEach(async () => {
+  await pipe.closeAll();
 });
 
 describe('at-least-once delivery', () => {
@@ -118,6 +125,7 @@ describe('at-least-once delivery', () => {
     appendFileSync(path, 'second\n');
     await pipe2.drain(target());
     expect(second.received).toEqual(['second']);   // not 'first' again
+    await pipe2.closeAll();
   });
 
   it('ships the tail of a rotated file before following the new one', async () => {
