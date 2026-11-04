@@ -1,6 +1,6 @@
 {
   "name": "pm2-shipper",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Log rotation for PM2 that works in cluster mode, with a disk cap that is actually enforced. Log shipping to follow.",
   "keywords": [
     "pm2",
